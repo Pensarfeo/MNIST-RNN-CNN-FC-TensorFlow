@@ -32,5 +32,5 @@ sets up the rnn graph
 ## Tensorboard
 to view the logs in tb run
 ```
-    tensorboard --logdir ./tmp
+tensorboard --logdir ./tmp
 ```
