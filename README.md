@@ -17,7 +17,7 @@ It defines a function that sets up all the training graph
 ### utils.py
 Provides some utility functions
 
-### #models/layers.py
+### models/layers.py
 functions to sets up the layers for the NN
 
 ### models/cnn.py
