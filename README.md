@@ -5,28 +5,28 @@ Little repo with examples of Recursive, Convolutional, and Fully Connected neura
 Code is still messy... needs more user fredlyness
 
 ## structure
-###nn.py
+### nn.py
     Main script: it calls everything it needs and runs the training and testing session
 
-###dataset.py
+### dataset.py
     It providers utilities to generate the training and testing deta for the feed_dict ``feed_dict_gen``; it will also download the data if not present and format it.
 
-###trainer.py
+### trainer.py
     It defines a function that sets up all the training graph
 
-###utils.py
+### utils.py
     Provides some utility functions
 
-####models/layers.py
+### #models/layers.py
     functions to sets up the layers for the NN
 
-###models/cnn.py
+### models/cnn.py
     sets up the cnn graph
 
-###models/fc.py
+### models/fc.py
     sets up the fc graph
 
-###models/rnn.py
+### models/rnn.py
     sets up the rnn graph
 
 ## Tensorboard
