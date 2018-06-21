@@ -69,19 +69,6 @@ def extract_labels(filename, num_images):
     labels = numpy.frombuffer(buf, dtype=numpy.uint8).astype(numpy.int64)
   return labels
 
-
-def fake_data(num_images):
-  """Generate a fake dataset that matches the dimensions of MNIST."""
-  data = numpy.ndarray(
-      shape=(num_images, IMAGE_SIZE, IMAGE_SIZE, NUM_CHANNELS),
-      dtype=numpy.float32)
-  labels = numpy.zeros(shape=(num_images,), dtype=numpy.int64)
-  for image in xrange(num_images):
-    label = image % 2
-    data[image, :, :, 0] = label - 0.5
-    labels[image] = label
-  return data, labels
-
 train_data_filename = maybe_download('train-images-idx3-ubyte.gz')
 train_labels_filename = maybe_download('train-labels-idx1-ubyte.gz')
 test_data_filename = maybe_download('t10k-images-idx3-ubyte.gz')
@@ -102,8 +89,10 @@ train_size = train_labels.shape[0]
 image_size = train_data.shape[1:]
 test_size = test_data.shape[0]
 
+# Example of curried function: a function that returns an other function.
 def feed_dict_gen(BATCH_SIZE, train_labels_node, train_data_node):
   def feed_dict_gen(step, kp, type='train'):
+    """format data to feed to session"""
     if (type=='train'):
       data, labels, size = train_data, train_labels, train_size
     else:

@@ -1,10 +1,8 @@
 import tensorflow as tf
 
 SEED = 66478  # Set to None for random seed.
-data_type = lambda: None
 
-
-def conv(input, cout, name='conv', const=0.1):
+def conv(input, cout, name='conv', data_type = tf.float32, const=0.1):
   cin = input.shape.as_list()[-1]
   with tf.name_scope(name):
     weights = tf.Variable(
@@ -12,7 +10,7 @@ def conv(input, cout, name='conv', const=0.1):
             [5, 5, cin, cout],  # 5x5 filter, depth 32.
             stddev=0.1,
             seed=SEED,
-            dtype=data_type()
+            dtype=data_type
         ),
       name='W'
     )
@@ -35,8 +33,7 @@ def conv(input, cout, name='conv', const=0.1):
     tf.summary.histogram("activations", relu)
     return pool
 
-import pdb
-def fc(input, cout, name='fc'):
+def fc(input, cout, name='fc', data_type = tf.float32):
   cin = input.shape.as_list()[-1]
   with tf.name_scope(name):
     weights = tf.Variable(  # fully connected, depth 512.
@@ -44,11 +41,11 @@ def fc(input, cout, name='fc'):
         [cin, cout],
         stddev=0.1,
         seed=SEED,
-        dtype=data_type()
+        dtype=data_type
       ),
       name='W'
     )
-    biases = tf.Variable(tf.constant(0.1, shape=[cout], dtype=data_type()), name='B')
+    biases = tf.Variable(tf.constant(0.1, shape=[cout], dtype=data_type), name='B')
 
     output = tf.matmul(input, weights) + biases
 
@@ -58,12 +55,13 @@ def fc(input, cout, name='fc'):
 
     return [output, weights, biases]
 
+# we dont need this function; it should be included in the models
 def dropout(input, keep_prob):
     return tf.nn.dropout(input, keep_prob, seed=SEED)
 
-def rec(input, n_size, name='rec', const=0.1):
+def rec(input, n_size, name='rec', data_type=tf.float32):
   lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(n_size,state_is_tuple=True)
-  outputs, states = tf.nn.static_rnn(lstm_cell, input, dtype=data_type())
+  outputs, states = tf.nn.static_rnn(lstm_cell, input, dtype=data_type)
   tf.summary.histogram("outputs", outputs)
   tf.summary.histogram("states", states)
   return outputs

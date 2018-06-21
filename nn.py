@@ -38,20 +38,20 @@ import tensorflow as tf
 import dataset
 import trainer
 import utils
+import models.layers as layers
 
 import pdb
 import scipy.misc
 
-PIXEL_DEPTH = 255
-NUM_LABELS = 10
+# for convenience we use the same batch size for the eval batch
+# unlike the original example we use a batch size that its a divisor of the total nr of training and testing images
+# EVAL_BATCH_SIZE = BATCH_SIZE
+BATCH_SIZE = 50 
 
-BATCH_SIZE = 50
 NUM_EPOCHS = 10
-EVAL_BATCH_SIZE = 50
 EVAL_FREQUENCY = 100  # Number of steps between evaluations.
 
 FLAGS = 1
-
 
 TRAIN = False
 MODEL = 'rnn'
@@ -59,72 +59,68 @@ LOGDIR = os.path.join(os.getcwd(), 'tmp', MODEL, 'graph')
 SAVE_MODEL_DIR = os.path.join(os.getcwd(), 'saved', MODEL + '.ckpt')
 model = importlib.import_module('models.' + MODEL)
 
-def pprint(a, *b, **all):
-    print('-----------------------------')
-    print(a)
-    for x in b:
-      print(b)
-    print('#############################')
+init_message_training = 'Training' if TRAIN else 'testing'
+utils.pprint('Model: ' + MODEL, 'Starting ' + init_message_training + 'session')
 
-
+# Not quite sure what difference data types make but I kept it from the original example
 def data_type():
-  """Return the type of the activations, weights, and placeholder variables."""
-  if FLAGS.use_fp16:
-    return tf.float16
-  else:
-    return tf.float32
-
-model.data_type = data_type
+  """
+    Return the type of the activations, weights, and placeholder variables.
+    not any longer settable cause I don't think its working properly.
+  """
+  return tf.float32
 
 def main(_):
+  # get dtat set info
   train_size = dataset.train_size
   image_size = dataset.image_size
   test_size = dataset.test_size
   #------------------------------------------------------------------
   # Data Training placeholders
+  # Only dropout 
   #------------------------------------------------------------------
 
-  train_data_node = tf.placeholder(
+  data_node = tf.placeholder(
     data_type(),
     shape=(BATCH_SIZE, *image_size),
     name='train'
   )
 
-  train_labels_node = tf.placeholder(tf.int64, shape=(BATCH_SIZE,))
+  labels_node = tf.placeholder(tf.int64, shape=(BATCH_SIZE,))
 
-  tf.summary.image('input', train_data_node, BATCH_SIZE)
+  tf.summary.image('input', data_node, BATCH_SIZE)
 
   #------------------------------------------------------------------
   # Init model
   #------------------------------------------------------------------
 
-  [logits, *weight_and_biases] = model.net(train_data_node, True)
+  [logits, *weight_and_biases] = model.net(data_node, TRAIN, data_type())
   
   #------------------------------------------------------------------
   # Train, validation & accuracy 
   #------------------------------------------------------------------
   optimizer, predictions, accuracy, prediction, correct_prediction = trainer.main(
-    train_labels_node,
+    labels_node,
     logits,
     weight_and_biases,
     BATCH_SIZE,
     data_type,
     train_size,
-    train_labels_node
+    labels_node
   )
 
   #------------------------------------------------------------------
   # Logging
   #------------------------------------------------------------------
-  summ = tf.summary.merge_all()
+  summ = tf.summary.merge_all() # merges all previous outpus
   start_time = time.time()
-  saver = tf.train.Saver()
+  saver = tf.train.Saver() # instance to save finished trained algorithm
 
   #------------------------------------------------------------------
   # session
   #------------------------------------------------------------------
 
-  feed_dict_gen = dataset.feed_dict_gen(BATCH_SIZE, train_labels_node, train_data_node)
+  feed_dict_gen = dataset.feed_dict_gen(BATCH_SIZE, labels_node, data_node)
 
   if TRAIN:
     # util to clean all prev logs
@@ -141,38 +137,42 @@ def main(_):
       #------------------------------------------------------------------
       # training loop
       #------------------------------------------------------------------
-      if TRAIN:
-        for step in xrange(int(train_size* NUM_EPOCHS ) // BATCH_SIZE):
-          feed_dict = feed_dict_gen(step, 0.5, 'train')[0]
-          if step % EVAL_FREQUENCY == 0: # and step!=0:
-            start_time = utils.epoch_tracker(step, start_time, BATCH_SIZE / train_size, EVAL_FREQUENCY)
-            feed_dict['keep_prob:0'] = 1
-            ss = sess.run(summ, feed_dict=feed_dict)
-          else:
-            __, _, ss, acc = sess.run([optimizer, predictions, summ, accuracy], feed_dict=feed_dict)
-          writerTrain.add_summary(ss, step)
-        save_path = saver.save(sess, SAVE_MODEL_DIR)
+      for step in xrange(int(train_size* NUM_EPOCHS ) // BATCH_SIZE):
+        feed_dict = feed_dict_gen(step, 0.5, 'train')[0]
+        if step % EVAL_FREQUENCY == 0: # and step!=0:
+          start_time = utils.epoch_tracker(step, start_time, BATCH_SIZE / train_size, EVAL_FREQUENCY)
+          feed_dict['keep_prob:0'] = 1 # when we eval or train we want the keep_prob = 1
+          ss = sess.run(summ, feed_dict=feed_dict)
+        else:
+          __, _, ss, acc = sess.run([optimizer, predictions, summ, accuracy], feed_dict=feed_dict)
+        writerTrain.add_summary(ss, step)
+      save_path = saver.save(sess, SAVE_MODEL_DIR)
 
   else:
-    #------------------------------------------------------------------
-    # testing loop
-    #------------------------------------------------------------------
+    # --------------------------------------------------------------
+    # test loop
+    # --------------------------------------------------------------
     writerTest =  utils.fresh_log_writer(LOGDIR, 'test')
     with tf.Session() as sess:
       saver.restore(sess, SAVE_MODEL_DIR)
-      testPredictions = []
+      test_predictions = []
+      test_misclassified = []
       for step in xrange(int(test_size) // BATCH_SIZE):
         writerTest.add_graph(sess.graph)
         feed_dict, batch_labels, batch_data = feed_dict_gen(step, 1, 'test')
+        if step % 10 == 0:
+          # Not properly calibrated; but just a way to know that something is happening
+          # We have 200 iterations to go
+          start_time = utils.epoch_tracker(step, start_time, 0, 10)
         ss = sess.run(summ, feed_dict=feed_dict)
-        # if step % EVAL_FREQUENCY == 0: # and step!=0:
-        #   start_time = utils.epoch_tracker(step, start_time, BATCH_SIZE / train_size, EVAL_FREQUENCY)
         accuracyres, cnp, cp, ss = sess.run([accuracy, prediction, correct_prediction, summ], feed_dict=feed_dict)
         misclassified = utils.get_mislabeled_cases(cnp, batch_labels, batch_data, step, BATCH_SIZE)
+        if (len(misclassified)>0):
+          test_misclassified.append(misclassified)
         writerTest.add_summary(ss, step)
-        testPredictions.append(accuracyres)
-      pprint(misclassified)
-      pprint(numpy.average(testPredictions))
+        test_predictions.append(accuracyres)
+      utils.pprint('Missclassified images: ', test_misclassified)
+      utils.pprint('Error rate:', 1 - numpy.average(test_predictions))
 
 
 if __name__ == '__main__':
